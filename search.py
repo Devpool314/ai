@@ -4,7 +4,6 @@ import pygame
 class PacmanSearchProblem:
     def __init__(self, game_maze):
         self.maze = game_maze
-        # Sửa lỗi typo _get_start_state -> get_start_state nếu có
         self.start_state = self._get_start_state() 
         self.exit_pos = self._find_char_in_maze('E')
         self._distance_cache = {}
@@ -16,15 +15,12 @@ class PacmanSearchProblem:
         pacman_pos, food_set = state
         return len(food_set) == 0
 
-    # =========================================================================
-    # HÀM GET_SUCCESSORS ĐÃ ĐƯỢC CẬP NHẬT HOÀN CHỈNH
-    # =========================================================================
     def get_successors(self, state):
         successors = []
         pacman_pos_tuple, food_set = state
         pacman_pos = pygame.Vector2(pacman_pos_tuple)
 
-        # --- BƯỚC 1: AI "NHÌN" XEM PACMAN CÓ ĐANG POWER-UP HAY KHÔNG ---
+        # ---  AI "NHÌN" XEM PACMAN CÓ ĐANG POWER-UP HAY KHÔNG ---
         is_powered_up = False
         try:
             # AI sẽ đọc trực tiếp trạng thái của Pacman trong game
@@ -32,7 +28,6 @@ class PacmanSearchProblem:
                 is_powered_up = True
         except Exception:
             pass # An toàn nếu pacman chưa được tạo
-        # ----------------------------------------------------------------
 
         # Lấy vị trí và vùng nguy hiểm của ghost (giữ nguyên)
         ghost_positions = set()
@@ -82,16 +77,11 @@ class PacmanSearchProblem:
             if not (0 <= ny < len(self.maze.map_data)):
                 continue
                 
-            # --- BƯỚC 2: AI ÁP DỤNG QUY TẮC MỚI KHI XÉT TƯỜNG ---
-            # AI kiểm tra xem ô tiếp theo có phải là tường không
             is_wall = self.maze.map_data[ny][nx] == '%'
             
-            # Nếu đó là tường VÀ Pacman KHÔNG có power-up, thì AI mới coi đó là vật cản
             if is_wall and not is_powered_up:
                 continue 
-            # --------------------------------------------------------
 
-            # Phần còn lại của logic (tính cost, né ghost, ăn food) giữ nguyên
             next_pos = (nx, ny)
             cost = 1
             if next_pos in ghost_positions: cost = 9999
@@ -108,28 +98,72 @@ class PacmanSearchProblem:
         return successors
         
     # === BFS cache ===
-    def get_maze_distance(self, pos1, pos2):
-        if (pos1, pos2) in self._distance_cache:
-            return self._distance_cache[(pos1, pos2)]
+    def get_maze_distance(self, start, goal):
+        if start == goal:
+            return 0
 
-        queue = [(pos1, 0)]
-        visited = {pos1}
-        while queue:
-            current_pos, dist = queue.pop(0)
-            if current_pos == pos2:
-                self._distance_cache[(pos1, pos2)] = dist
-                self._distance_cache[(pos2, pos1)] = dist
-                return dist
-            x, y = current_pos
-            for dx, dy, _ in [(-1, 0, ''), (1, 0, ''), (0, -1, ''), (0, 1, '')]:
-                next_x, next_y = x + dx, y + dy
-                if (0 <= next_y < len(self.maze.map_data)
-                    and 0 <= next_x < len(self.maze.map_data[next_y])
-                    and self.maze.map_data[next_y][next_x] != '%'
-                    and (next_x, next_y) not in visited):
-                    visited.add((next_x, next_y))
-                    queue.append(((next_x, next_y), dist + 1))
-        return 0
+        # Cache kết quả nếu có
+        if (start, goal) in self._distance_cache:
+            return self._distance_cache[(start, goal)]
+
+        def is_walkable(x, y):
+            return (
+                0 <= y < len(self.maze.map_data)
+                and 0 <= x < len(self.maze.map_data[y])
+                and self.maze.map_data[y][x] != '%'
+            )
+
+        def jump(x, y, dx, dy):
+
+            next_x, next_y = x + dx, y + dy
+            if not is_walkable(next_x, next_y):
+                return None
+            if (next_x, next_y) == goal:
+                return (next_x, next_y)
+
+            # Forced neighbor check (phát hiện ngã rẽ)
+            if dx != 0 and dy == 0:  # ngang
+                if (is_walkable(next_x, next_y - 1) and not is_walkable(x, y - 1)) \
+                   or (is_walkable(next_x, next_y + 1) and not is_walkable(x, y + 1)):
+                    return (next_x, next_y)
+            elif dy != 0 and dx == 0:  # dọc
+                if (is_walkable(next_x - 1, next_y) and not is_walkable(x - 1, y)) \
+                   or (is_walkable(next_x + 1, next_y) and not is_walkable(x + 1, y)):
+                    return (next_x, next_y)
+
+            return jump(next_x, next_y, dx, dy)
+
+        def get_neighbors(x, y):
+            """Lấy 4 hướng di chuyển hợp lệ."""
+            dirs = []
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if is_walkable(nx, ny):
+                    dirs.append((dx, dy))
+            return dirs
+
+        import heapq
+        open_list = [(0, start)]
+        g_cost = {start: 0}
+        heapq.heapify(open_list)
+
+        while open_list:
+            _, current = heapq.heappop(open_list)
+            if current == goal:
+                self._distance_cache[(start, goal)] = g_cost[current]
+                self._distance_cache[(goal, start)] = g_cost[current]
+                return g_cost[current]
+
+            x, y = current
+            for dx, dy in get_neighbors(x, y):
+                jump_point = jump(x, y, dx, dy)
+                if jump_point:
+                    new_g = g_cost[current] + 1  # mỗi bước nhảy = 1 cạnh hợp lệ
+                    if jump_point not in g_cost or new_g < g_cost[jump_point]:
+                        g_cost[jump_point] = new_g
+                        heapq.heappush(open_list, (new_g, jump_point))
+
+        return 9999  
 
     def _get_start_state(self):
         pacman_pos = self._find_char_in_maze('P')
@@ -156,9 +190,8 @@ class PacmanSearchProblem:
 #  Heuristic A*
 # ==============================
 def heuristic(state, problem):
+    
     pacman_pos, food_set = state
-
-    # Trường hợp cơ bản: đã ăn hết thức ăn
     if not food_set:
         exit_pos = getattr(problem, "exit_pos", None)
         if exit_pos:
@@ -167,16 +200,12 @@ def heuristic(state, problem):
 
     food_list = list(food_set)
 
-    # --- BƯỚC 1: TÍNH KHOẢNG CÁCH TỪ PACMAN TỚI MẠNG LƯỚI THỨC ĂN ---
-    # Tìm khoảng cách mê cung ngắn nhất từ Pacman đến bất kỳ viên thức ăn nào.
     min_dist_to_food = float('inf')
     for food in food_list:
         dist = problem.get_maze_distance(pacman_pos, food)
         if dist < min_dist_to_food:
             min_dist_to_food = dist
 
-    # --- BƯỚC 2: TÍNH CHI PHÍ MẠNG LƯỚI THỨC ĂN BẰNG MST (THUẬT TOÁN PRIM) ---
-    # Đây là phần tính toán chi phí tối thiểu để "kết nối" tất cả các viên thức ăn lại.
     mst_cost = 0
     if len(food_list) > 1:
         # Sử dụng thuật toán Prim để tính MST
@@ -206,8 +235,6 @@ def heuristic(state, problem):
     # Heuristic chính là tổng của khoảng cách đến mạng lưới và chi phí của mạng lưới
     food_heuristic = min_dist_to_food + mst_cost
 
-    # --- BƯỚC 3: KẾT HỢP VỚI CÁC YẾU TỐ KHÁC (NÉ MA) ---
-    # Yếu tố né ma vẫn cực kỳ quan trọng để sinh tồn
     danger_penalty = 0
     try:
         if hasattr(problem.maze, "game") and hasattr(problem.maze.game, "ghosts"):
@@ -218,8 +245,6 @@ def heuristic(state, problem):
                 elif grid_dist <= 3: danger_penalty += 500
     except Exception:
         pass
-    
-    # Heuristic cuối cùng
     return food_heuristic + danger_penalty
 # ==============================
 #  A* Search
@@ -272,8 +297,6 @@ def a_star_search(problem, return_cost=False):
             full_path = full_path + ['Stop']
 
             if return_cost:
-                print(f"\n A* Completed — Total cost: {total_cost}")
-                print(f"Path: {full_path}\n")
                 return full_path, total_cost
             return full_path
 
