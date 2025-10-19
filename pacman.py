@@ -124,7 +124,6 @@ class Pacman:
 
                     move_dir = self.direction if self.direction.length() > 0 else pygame.Vector2(0, 0)
 
-                    # Đặt Pacman ngay giữa ô teleport
                     self.grid_pos = target
                     self.pix_pos = pygame.Vector2(target.x * TILE_SIZE, target.y * TILE_SIZE)
                     self.last_teleport_time = time.time()
@@ -142,7 +141,7 @@ class Pacman:
                     else:
                         self.direction = move_dir
                     break
-            # === HẾT PHẦN TELEPORT ===
+                # === HẾT PHẦN TELEPORT ===
 
             # Ăn điểm / power-up
             y, x = int(self.grid_pos.y), int(self.grid_pos.x)
