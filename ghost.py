@@ -1,4 +1,3 @@
-# ghost.py
 import pygame
 from settings import *
 
@@ -10,6 +9,7 @@ class Ghost:
         self.direction = pygame.Vector2(1, 0) 
         self.speed = 1
         self.color = color
+        
 
     def update(self):
         next_grid_pos = self.grid_pos + self.direction
