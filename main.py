@@ -22,6 +22,7 @@ class Game:
         self.problem = None
         self.ghosts = []
         self.step_counter = 0
+        self.score = 0
         
         try:
             self.load_initial_data()
@@ -94,6 +95,7 @@ class Game:
             
             self.draw("Mode: Manual | Press ESC for Menu")
             self.clock.tick(60)
+            
 
     def run_auto_mode(self):
         self.draw("Calculating (replanning realtime)...")
@@ -101,6 +103,10 @@ class Game:
             self.reset_pacman()
         max_iterations = 10000
         iters = 0
+        
+        direction_stats = {'North': 0, 'South': 0, 'East': 0, 'West': 0, 'Stop': 0}
+        total_steps = 0
+        total_cost = 0
 
         while self.game_state == 'playing_auto' and iters < max_iterations:
             for event in pygame.event.get():
@@ -109,6 +115,7 @@ class Game:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     self.game_state = 'menu'
                     return
+
             ghost_near = any(
                 abs(int(self.pacman.grid_pos.x) - int(g.grid_pos.x)) +
                 abs(int(self.pacman.grid_pos.y) - int(g.grid_pos.y)) <= 3
@@ -116,6 +123,8 @@ class Game:
             )
 
             if self.pacman.can_change_direction() or ghost_near:
+                if self.pacman.just_powered_up:
+                    self.pacman.just_powered_up = False
                 cur_pos = (int(self.pacman.grid_pos.x), int(self.pacman.grid_pos.y))
                 food_list = []
                 for y, row in enumerate(self.maze.map_data):
@@ -124,42 +133,42 @@ class Game:
                             food_list.append((x, y))
 
                 if len(food_list) == 0:
-                    # try attribute first
                     exit_pos = getattr(self.maze, "exit_pos", None)
                     if exit_pos is None:
-                        # scan map for common exit markers
                         found = None
                         for y, row in enumerate(self.maze.map_data):
                             for x, ch in enumerate(row):
                                 if ch in ('E', 'X', '>', 'e', 'x'):
                                     found = (x, y)
                                     break
-                            if found:
-                                break
+                            if found: break
                         exit_pos = found
 
                     if exit_pos is None:
-                        # không tìm thấy exit trên map -> thông báo và chuyển về menu
                         self.draw("No exit found; ending auto mode."); pygame.time.wait(300)
                         self.game_state = 'menu'
                         return
                     else:
-                        # dùng exit như "food" ảo để A* lập kế hoạch tới đó
                         food_list = [exit_pos]
 
-                # --- prepare problem state for planner ---
                 problem_state = (cur_pos, frozenset(food_list))
                 saved_start = self.problem.start_state
                 self.problem.start_state = problem_state
 
-                solution = a_star_search(self.problem)
+                solution, cost = a_star_search(self.problem, return_cost=True)
                 self.problem.start_state = saved_start
+
                 if not solution or len(solution) == 0:
                     self.draw("No path found (replanning...)"); pygame.time.wait(200)
                     self.game_state = 'menu'
                     return
 
                 next_action = solution[0]
+                total_cost += cost
+                total_steps += 1
+                if next_action in direction_stats:
+                    direction_stats[next_action] += 1
+
                 dir_vec = pygame.Vector2(0, 0)
                 if next_action == 'North': dir_vec = pygame.Vector2(0, -1)
                 elif next_action == 'South': dir_vec = pygame.Vector2(0, 1)
@@ -167,6 +176,7 @@ class Game:
                 elif next_action == 'West': dir_vec = pygame.Vector2(-1, 0)
                 elif next_action == 'Teleport' or next_action == 'Stop':
                     dir_vec = pygame.Vector2(0, 0)
+                    direction_stats['Stop'] += 1
 
                 if dir_vec.length() > 0:
                     self.pacman.move(dir_vec)
@@ -174,9 +184,9 @@ class Game:
             self.pacman.update()
             for ghost in self.ghosts:
                 ghost.update()
-                
+
             if self.check_victory_condition():
-                return
+                break
 
             if self.pacman.power_up_timer == 0:
                 for ghost in self.ghosts:
@@ -188,9 +198,23 @@ class Game:
             self.clock.tick(60)
             iters += 1
 
+        # Khi Pacman hoàn tất, in ra terminal tổng hợp
+        print("\n===== AUTO MODE SUMMARY =====")
+        print(f" Total cost: {total_cost}")
+        print(f" Total steps: {total_steps}")
+        print(f" Direction summary: {direction_stats}")
+        print("=============================\n")
+
+        for ghost in self.ghosts:
+            distance = self.pacman.pix_pos.distance_to(ghost.pix_pos)
+            if distance < TILE_SIZE / 2:
+                self.game_state = 'game_over'
+                break
+
         if iters >= max_iterations:
             print("[WARN] Auto mode reached iteration limit.")
             self.game_state = 'menu'
+
 
 
     def draw(self, status_text=""):
@@ -230,11 +254,29 @@ class Game:
                             if event.type == pygame.QUIT:
                                 pygame.quit()
                                 sys.exit()
+                        
+                        # Giữ nguyên việc vẽ nền game
                         self.draw("YOU WIN!")
+
+                        # Dòng code cũ: Hiển thị chữ "YOU WIN!"
                         win_text = self.font_big.render("YOU WIN!", True, (0, 255, 0))
-                        rect = win_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
-                        self.screen.blit(win_text, rect)
+                        win_rect = win_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20))
+                        self.screen.blit(win_text, win_rect)
+
+                        # === CÁC DÒNG MỚI ĐƯỢC THÊM VÀO ===
+                        # 1. Lấy tổng số bước đi từ đối tượng pacman
+                        total_steps = self.pacman.step_count
+                        
+                        # 2. Tạo một dòng chữ mới để hiển thị số bước
+                        steps_text = self.font_small.render(f"Total Steps: {total_steps}", True, WHITE)
+                        steps_rect = steps_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 30))
+                        
+                        # 3. Vẽ dòng chữ đó lên màn hình, ngay dưới chữ "YOU WIN!"
+                        self.screen.blit(steps_text, steps_rect)
+                        # ==================================
+
                         pygame.display.flip()
+                        
                     self.game_state = 'menu'
                     return True
         return False
