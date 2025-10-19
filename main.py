@@ -27,7 +27,7 @@ class Game:
         try:
             self.load_initial_data()
         except Exception as e:
-            print(f"LỖI KHỞI TẠO GAME: {e}")
+            print(f"ERR: {e}")
             pygame.quit(); sys.exit()
 
     def load_initial_data(self):
@@ -96,7 +96,6 @@ class Game:
             self.draw("Mode: Manual | Press ESC for Menu")
             self.clock.tick(60)
             
-
     def run_auto_mode(self):
         self.draw("Calculating (replanning realtime)...")
         if not self.pacman:
@@ -198,7 +197,6 @@ class Game:
             self.clock.tick(60)
             iters += 1
 
-        # Khi Pacman hoàn tất, in ra terminal tổng hợp
         print("\n===== AUTO MODE SUMMARY =====")
         print(f" Total cost: {total_cost}")
         print(f" Total steps: {total_steps}")
@@ -254,26 +252,19 @@ class Game:
                             if event.type == pygame.QUIT:
                                 pygame.quit()
                                 sys.exit()
-                        
-                        # Giữ nguyên việc vẽ nền game
+
                         self.draw("YOU WIN!")
 
                         # Dòng code cũ: Hiển thị chữ "YOU WIN!"
                         win_text = self.font_big.render("YOU WIN!", True, (0, 255, 0))
                         win_rect = win_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20))
                         self.screen.blit(win_text, win_rect)
-
-                        # === CÁC DÒNG MỚI ĐƯỢC THÊM VÀO ===
-                        # 1. Lấy tổng số bước đi từ đối tượng pacman
                         total_steps = self.pacman.step_count
                         
-                        # 2. Tạo một dòng chữ mới để hiển thị số bước
                         steps_text = self.font_small.render(f"Total Steps: {total_steps}", True, WHITE)
                         steps_rect = steps_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 30))
                         
-                        # 3. Vẽ dòng chữ đó lên màn hình, ngay dưới chữ "YOU WIN!"
                         self.screen.blit(steps_text, steps_rect)
-                        # ==================================
 
                         pygame.display.flip()
                         
