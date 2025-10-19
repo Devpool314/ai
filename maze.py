@@ -26,6 +26,11 @@ class Maze:
                     pygame.draw.circle(surface, WHITE, (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 4)
                 elif tile == 'O':  # Bánh ma thuật
                     pygame.draw.circle(surface, WHITE, (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 8)
+                elif tile == 'E':  # <--- Bổ sung phần vẽ đích đến (Exit)
+                    # Vẽ một hình vuông màu XANH LÁ (Green) tượng trưng cho đích đến
+                    GREEN = (0, 200, 0)
+                    rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
+                    pygame.draw.rect(surface, GREEN, rect, 2) # Vẽ khung 2px
 
     def remove_food(self, pos):
         """Xóa ký tự tại một vị trí trên bản đồ (thay bằng ô trống)."""
