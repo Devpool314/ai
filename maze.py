@@ -42,22 +42,22 @@ class Maze:
             print("[WARN] Maze empty, cannot rotate.")
             return
 
-        # === 1️⃣ Chuẩn hoá map để các dòng bằng nhau ===
+        # === Chuẩn hoá map để các dòng bằng nhau ===
         max_len = max(len(row) for row in self.map_data)
         normalized = [row.ljust(max_len, '%') for row in self.map_data]
 
         old_height = len(normalized)
 
-        # === 2️⃣ Xoay map 90° phải ===
+        # === Xoay map 90° phải ===
         rotated = ["".join(row) for row in zip(*normalized[::-1])]
         self.map_data = rotated
 
-        # === 3️⃣ Cập nhật kích thước mới ===
+        # === Cập nhật kích thước mới ===
         self.tile_width, self.tile_height = self.tile_height, self.tile_width
         self.width = self.tile_width * TILE_SIZE
         self.height = self.tile_height * TILE_SIZE
 
-        # === 4️⃣ Xoay Pacman nếu có ===
+        # === Xoay Pacman nếu có ===
         if pacman is not None:
             x, y = int(pacman.grid_pos.x), int(pacman.grid_pos.y)
             new_x = old_height - 1 - y
@@ -73,7 +73,7 @@ class Maze:
                 old_dir = pacman.direction
                 pacman.direction = pygame.Vector2(-old_dir.y, old_dir.x)
 
-        # === 5️⃣ Xoay Ghosts nếu có ===
+        # === Xoay Ghosts nếu có ===
         if ghosts is not None:
             for g in ghosts:
                 x, y = int(g.grid_pos.x), int(g.grid_pos.y)
