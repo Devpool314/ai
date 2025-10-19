@@ -10,11 +10,13 @@ class Pacman:
         self.pix_pos = pygame.Vector2(self.grid_pos.x * TILE_SIZE, self.grid_pos.y * TILE_SIZE)
         self.direction = pygame.Vector2(0, 0)
         self.stored_direction = None
-        self.speed = 2
+        self.speed = 4
         self.power_up_timer = 0
         self.last_teleport_time = 0
         self.teleport_flash_duration = 0.1  # giây
         self.step_count = 0 
+        self.just_powered_up = False
+        
 
     def update(self):
         # Điều khiển
@@ -27,6 +29,12 @@ class Pacman:
 
         #Cập nhật vị trí pixel
         self.pix_pos += self.direction * self.speed
+        
+        # --- LOGIC ĐI XUYÊN TƯỜNG ---
+        if self.pix_pos.x > self.game.maze.width:
+            self.pix_pos.x = -TILE_SIZE
+        elif self.pix_pos.x < -TILE_SIZE:
+            self.pix_pos.x = self.game.maze.width
 
         #Cập nhật vị trí grid
         new_grid_pos = pygame.Vector2(
@@ -53,7 +61,6 @@ class Pacman:
             if self.power_up_timer > 0 and self.grid_pos != last_grid_pos:
                 self.power_up_timer -= 1
 
-            #Đếm bước & xử lý xoay mê cung mỗi 30 bước
             self.step_count += 1
             if self.step_count % 30 == 0:
                 try:
@@ -83,7 +90,7 @@ class Pacman:
                 except Exception as e:
                     print(f"[WARN] Maze rotation failed safely: {e}")
 
-            # === TELEPORT GÓC (ĐỐI XỨNG 4 GÓC) ===
+            # === TELEPORT GÓC ===
             def find_corner(start_x, start_y, dx, dy):
                 """Tìm ô trống gần góc, an toàn, không ra ngoài map"""
                 height = len(self.game.maze.map_data)
@@ -200,4 +207,3 @@ class Pacman:
         cx = self.grid_pos.x * TILE + TILE / 2
         cy = self.grid_pos.y * TILE + TILE / 2
         return abs(self.pix_pos.x - cx) < 2 and abs(self.pix_pos.y - cy) < 2
-
