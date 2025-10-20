@@ -29,6 +29,19 @@ class Game:
         except Exception as e:
             print(f"ERR: {e}")
             pygame.quit(); sys.exit()
+        
+        try:
+            temp_maze = Maze('maps/task02_pacman_example_map.txt') 
+            
+            self.screen = pygame.display.set_mode((temp_maze.width, temp_maze.height))
+            
+            self.load_initial_data() 
+            
+        except Exception as e:
+            print(f"ERR: {e}")
+            pygame.quit(); sys.exit()
+
+        pygame.display.set_caption("Pacman AI Project")
 
     def load_initial_data(self):
         self.maze = Maze('maps/task02_pacman_example_map.txt')
@@ -45,7 +58,7 @@ class Game:
         self.step_counter = 0
         self.load_initial_data()
         start_pos = self.problem.get_start_state()[0]
-        if not start_pos: raise ValueError("Lỗi: Không tìm thấy Pacman 'P'.")
+        if not start_pos: raise ValueError("ERR: Not found Pacman 'P'.")
         self.pacman = Pacman(self, start_pos)
 
     def run(self):
@@ -60,6 +73,16 @@ class Game:
         manual_rect = manual_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 50))
         auto_text = self.font_big.render("AUTO MODE (A*)", True, WHITE)
         auto_rect = auto_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 50))
+        
+        current_width = self.screen.get_width()
+        current_height = self.screen.get_height()
+
+        manual_text = self.font_big.render("MANUAL MODE", True, WHITE)
+        manual_rect = manual_text.get_rect(center=(current_width/2, current_height/2 - 50)) 
+        
+        auto_text = self.font_big.render("AUTO MODE (A*)", True, WHITE)
+        auto_rect = auto_text.get_rect(center=(current_width/2, current_height/2 + 50))
+        
         while self.game_state == 'menu':
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: pygame.quit(); sys.exit()
@@ -197,12 +220,6 @@ class Game:
             self.clock.tick(60)
             iters += 1
 
-        print("\n===== AUTO MODE SUMMARY =====")
-        print(f" Total cost: {total_cost}")
-        print(f" Total steps: {total_steps}")
-        print(f" Direction summary: {direction_stats}")
-        print("=============================\n")
-
         for ghost in self.ghosts:
             distance = self.pacman.pix_pos.distance_to(ghost.pix_pos)
             if distance < TILE_SIZE / 2:
@@ -230,8 +247,10 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: pygame.quit(); sys.exit()
             self.draw("GAME OVER")
+            current_width = self.screen.get_width()
+            current_height = self.screen.get_height()
             game_over_text = self.font_big.render("GAME OVER", True, (255, 0, 0))
-            rect = game_over_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2))
+            rect = game_over_text.get_rect(center=(current_width / 2, current_height / 2))
             self.screen.blit(game_over_text, rect)
             pygame.display.flip()
         self.game_state = 'menu'
@@ -255,16 +274,26 @@ class Game:
 
                         self.draw("YOU WIN!")
 
+                        current_width = self.screen.get_width()
+                        current_height = self.screen.get_height()
+
                         # Dòng code cũ: Hiển thị chữ "YOU WIN!"
                         win_text = self.font_big.render("YOU WIN!", True, (0, 255, 0))
-                        win_rect = win_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20))
+                        win_rect = win_text.get_rect(center=(current_width / 2, current_height / 2 - 20))
                         self.screen.blit(win_text, win_rect)
                         total_steps = self.pacman.step_count
                         
                         steps_text = self.font_small.render(f"Total Steps: {total_steps}", True, WHITE)
-                        steps_rect = steps_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 30))
+                        steps_rect = steps_text.get_rect(center=(current_width / 2, current_height / 2 + 30))
                         
                         self.screen.blit(steps_text, steps_rect)
+                        
+                        # --- In ra đường đi thật của Pacman ---
+                        if not hasattr(self, "win_message_printed"):
+                            self.win_message_printed = True  # đánh dấu đã in
+                            if hasattr(self, "real_path") and len(self.real_path) > 0:
+                                print(f"Total Steps: {self.pacman.step_count} | Path: {' -> '.join(self.real_path)}")
+
 
                         pygame.display.flip()
                         
