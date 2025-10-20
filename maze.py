@@ -18,16 +18,33 @@ class Maze:
             for col_idx, tile in enumerate(row):
                 x = col_idx * TILE_SIZE
                 y = row_idx * TILE_SIZE
+                
+                rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
+
                 if tile == '%':  # Tường
-                    pygame.draw.rect(surface, BLUE, (x, y, TILE_SIZE, TILE_SIZE))
-                elif tile == '.':  
-                    pygame.draw.circle(surface, WHITE, (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 4)
-                elif tile == 'O': 
-                    pygame.draw.circle(surface, WHITE, (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 8)
-                elif tile == 'E':  
-                    GREEN = (0, 200, 0)
-                    rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
-                    pygame.draw.rect(surface, GREEN, rect) 
+                    # Vẽ nền tối
+                    pygame.draw.rect(surface, DARK_WALL, rect) 
+                    # Vẽ đường viền sáng cho cảm giác 3D
+                    pygame.draw.rect(surface, BLUE, rect, 2) 
+
+                elif tile == '.':  # Food (Chấm nhỏ)
+                    pygame.draw.circle(surface, FOOD_COLOR, 
+                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
+                                       3) # Giảm bán kính 
+                    
+                elif tile == 'O': # Power-up (Chấm lớn)
+                    # Thêm hiệu ứng nhấp nháy/vòng tròn ngoài
+                    pygame.draw.circle(surface, POWER_UP_COLOR, 
+                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
+                                       TILE_SIZE // 2 - 4, 1) # Vòng tròn ngoài
+                    pygame.draw.circle(surface, FOOD_COLOR, 
+                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
+                                       TILE_SIZE // 4) # Chấm đặc bên trong
+
+                elif tile == 'E':  # Cổng ra
+                    GREEN_LIGHT = (50, 255, 50)
+                    pygame.draw.rect(surface, GREEN_LIGHT, rect)
+                    pygame.draw.rect(surface, (0, 100, 0), rect, 2) # Viền tối
 
     def remove_food(self, pos):
         x, y = int(pos[0]), int(pos[1])
