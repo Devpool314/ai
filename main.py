@@ -120,7 +120,7 @@ class Game:
             self.clock.tick(60)
             
     def run_auto_mode(self):
-        self.draw("Calculating (replanning realtime)...")
+        self.draw("Mode : Auto |Calculating (replanning realtime)...")
         if not self.pacman:
             self.reset_pacman()
         max_iterations = 10000
@@ -216,7 +216,7 @@ class Game:
                         self.game_state = 'game_over'
                         break
 
-            self.draw("Auto (replanning dynamic)")
+            self.draw("Mode : Auto")
             self.clock.tick(60)
             iters += 1
 
@@ -235,10 +235,30 @@ class Game:
     def draw(self, status_text=""):
         self.screen.fill(BLACK)
         self.maze.draw(self.screen)
+        
         if self.pacman: self.pacman.draw()
         for ghost in self.ghosts: ghost.draw()
-        text_surface = self.font_small.render(status_text, True, WHITE)
-        self.screen.blit(text_surface, (10, 10))
+        
+        current_width = self.screen.get_width()
+        
+        y_pos = 5 
+        
+        status_surface = self.font_small.render(status_text, True, (180, 180, 180)) 
+        self.screen.blit(status_surface, (10, y_pos))
+
+        score_text = f"SCORE: {self.score}" 
+        score_surface = self.font_small.render(score_text, True, YELLOW)
+        score_rect = score_surface.get_rect(right=current_width - 10, top=y_pos)
+        self.screen.blit(score_surface, score_rect)
+        
+        if self.pacman and self.pacman.power_up_timer > 0:
+            time_left = max(0, int(self.pacman.power_up_timer / 60) + 1)
+            timer_text = f"POWER UP"
+            timer_surface = self.font_small.render(timer_text, True, (255, 50, 50)) 
+            
+            timer_rect = timer_surface.get_rect(center=(current_width / 2, y_pos + self.font_small.get_height()/2))
+            self.screen.blit(timer_surface, timer_rect)
+        
         pygame.display.flip()
 
     def run_game_over(self):
@@ -277,7 +297,6 @@ class Game:
                         current_width = self.screen.get_width()
                         current_height = self.screen.get_height()
 
-                        # Dòng code cũ: Hiển thị chữ "YOU WIN!"
                         win_text = self.font_big.render("YOU WIN!", True, (0, 255, 0))
                         win_rect = win_text.get_rect(center=(current_width / 2, current_height / 2 - 20))
                         self.screen.blit(win_text, win_rect)
@@ -287,10 +306,9 @@ class Game:
                         steps_rect = steps_text.get_rect(center=(current_width / 2, current_height / 2 + 30))
                         
                         self.screen.blit(steps_text, steps_rect)
-                        
-                        # --- In ra đường đi thật của Pacman ---
+
                         if not hasattr(self, "win_message_printed"):
-                            self.win_message_printed = True  # đánh dấu đã in
+                            self.win_message_printed = True 
                             if hasattr(self, "real_path") and len(self.real_path) > 0:
                                 print(f"Total Steps: {self.pacman.step_count} | Path: {' -> '.join(self.real_path)}")
 
