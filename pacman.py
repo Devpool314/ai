@@ -19,7 +19,6 @@ class Pacman:
         
 
     def update(self):
-        # Điều khiển
         if self.can_change_direction():
             if self.stored_direction and self.can_move_in_direction(self.stored_direction):
                 self.direction = self.stored_direction
@@ -27,16 +26,13 @@ class Pacman:
             elif not self.can_move_in_direction(self.direction):
                 self.direction = pygame.Vector2(0, 0)
 
-        #Cập nhật vị trí pixel
         self.pix_pos += self.direction * self.speed
         
-        # --- LOGIC ĐI XUYÊN TƯỜNG ---
         if self.pix_pos.x > self.game.maze.width:
             self.pix_pos.x = -TILE_SIZE
         elif self.pix_pos.x < -TILE_SIZE:
             self.pix_pos.x = self.game.maze.width
-
-        #Cập nhật vị trí grid
+            
         new_grid_pos = pygame.Vector2(
             round(self.pix_pos.x / TILE_SIZE),
             round(self.pix_pos.y / TILE_SIZE)
@@ -46,7 +42,6 @@ class Pacman:
             last_grid_pos = self.grid_pos
             self.grid_pos = new_grid_pos
 
-            # Ăn điểm / power-up trước khi teleport
             y, x = int(self.grid_pos.y), int(self.grid_pos.x)
             if 0 <= y < len(self.game.maze.map_data):
                 row = self.game.maze.map_data[y]
@@ -62,25 +57,32 @@ class Pacman:
                 self.power_up_timer -= 1
 
             self.step_count += 1
+            if not hasattr(self.game, "real_path"):
+                self.game.real_path = []
+
+            if self.direction.x == 1:
+                self.game.real_path.append("East")
+            elif self.direction.x == -1:
+                self.game.real_path.append("West")
+            elif self.direction.y == -1:
+                self.game.real_path.append("North")
+            elif self.direction.y == 1:
+                self.game.real_path.append("South")
+
             if self.step_count % 30 == 0:
                 try:
-                    #  Xoay mê cung 90° phải, đồng bộ pacman + ghosts
                     self.game.maze.rotate_maze_90_right(
                         pacman=self,
                         ghosts=getattr(self.game, "ghosts", None)
                     )
 
-                    #  Cập nhật lại kích thước màn hình
                     self.game.screen = pygame.display.set_mode(
                         (self.game.maze.width, self.game.maze.height)
                     )
 
-                    #  Cập nhật lại vị trí pixel để không lệch
                     self.pix_pos = self.grid_pos * TILE_SIZE
 
-                    #  Kiểm tra lại hướng di chuyển sau xoay
                     if not self.can_move_in_direction(self.direction):
-                        # Nếu hướng hiện tại bị chặn, thử hướng ngược lại
                         reverse_dir = self.direction * -1
                         if self.can_move_in_direction(reverse_dir):
                             self.direction = reverse_dir
@@ -92,7 +94,6 @@ class Pacman:
 
             # === TELEPORT GÓC ===
             def find_corner(start_x, start_y, dx, dy):
-                """Tìm ô trống gần góc, an toàn, không ra ngoài map"""
                 height = len(self.game.maze.map_data)
                 width = max(len(r) for r in self.game.maze.map_data)
 
@@ -109,7 +110,6 @@ class Pacman:
                             return pygame.Vector2(x, y)
                 return pygame.Vector2(start_x, start_y)
 
-            # Tìm 4 góc đối xứng
             top_left = find_corner(0, 0, +1, +1)
             top_right = find_corner(self.game.maze.tile_width - 1, 0, -1, +1)
             bottom_left = find_corner(0, self.game.maze.tile_height - 1, +1, -1)
@@ -118,7 +118,6 @@ class Pacman:
 
             for corner in corners:
                 if self.grid_pos == corner:
-                    # Chọn góc khác bất kỳ
                     possible_targets = [c for c in corners if c != corner]
                     target = random.choice(possible_targets)
 
@@ -128,35 +127,17 @@ class Pacman:
                     self.pix_pos = pygame.Vector2(target.x * TILE_SIZE, target.y * TILE_SIZE)
                     self.last_teleport_time = time.time()
 
-                    # Giữ hướng di chuyển nếu hợp lệ
                     if not self.can_move_in_direction(move_dir):
                         move_dir *= -1
                         if not self.can_move_in_direction(move_dir):
                             move_dir = pygame.Vector2(0, 0)
 
-                    # Auto mode thì tạm dừng, manual giữ hướng
                     is_auto = getattr(self.game, "auto_mode", False) or getattr(self.game, "game_state", "") in ["auto", "playing_auto"]
                     if is_auto:
                         self.direction = pygame.Vector2(0, 0)
                     else:
                         self.direction = move_dir
                     break
-                # === HẾT PHẦN TELEPORT ===
-
-            # Ăn điểm / power-up
-            y, x = int(self.grid_pos.y), int(self.grid_pos.x)
-            if 0 <= y < len(self.game.maze.map_data):
-                row = self.game.maze.map_data[y]
-                if 0 <= x < len(row):
-                    current_tile_char = row[x]
-                    if current_tile_char == '.':
-                        self.game.maze.remove_food(self.grid_pos)
-                    elif current_tile_char == 'O':
-                        self.game.maze.remove_food(self.grid_pos)
-                        self.power_up_timer = 5
-
-            if self.power_up_timer > 0 and self.grid_pos != last_grid_pos:
-                self.power_up_timer -= 1
 
     def draw(self):
         now = time.time()
@@ -201,7 +182,6 @@ class Pacman:
             return True
         return row[x] != '%'
     def at_center_of_tile(self):
-        """Kiểm tra nếu Pacman đang ở chính giữa ô lưới."""
         TILE = TILE_SIZE if 'TILE_SIZE' in globals() else 24
         cx = self.grid_pos.x * TILE + TILE / 2
         cy = self.grid_pos.y * TILE + TILE / 2
