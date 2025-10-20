@@ -20,16 +20,13 @@ class PacmanSearchProblem:
         pacman_pos_tuple, food_set = state
         pacman_pos = pygame.Vector2(pacman_pos_tuple)
 
-        # ---  AI "NHÌN" XEM PACMAN CÓ ĐANG POWER-UP HAY KHÔNG ---
         is_powered_up = False
         try:
-            # AI sẽ đọc trực tiếp trạng thái của Pacman trong game
             if self.maze.game.pacman.power_up_timer > 0:
                 is_powered_up = True
         except Exception:
-            pass # An toàn nếu pacman chưa được tạo
+            pass 
 
-        # Lấy vị trí và vùng nguy hiểm của ghost (giữ nguyên)
         ghost_positions = set()
         danger_zones = set()
         dangerous_rows = set()
@@ -48,7 +45,6 @@ class PacmanSearchProblem:
         except Exception:
             pass
 
-        # Logic teleport 4 góc (giữ nguyên)
         corners = [
                 (0, 0), (self.maze.tile_width - 1, 0),
                 (0, self.maze.tile_height - 1), (self.maze.tile_width - 1, self.maze.tile_height - 1)
@@ -69,11 +65,9 @@ class PacmanSearchProblem:
         for dx, dy, action in actions:
             nx, ny = x + dx, y + dy
             
-            # Xử lý đi xuyên cạnh màn hình
             if nx < 0: nx = self.maze.tile_width - 1
             elif nx >= self.maze.tile_width: nx = 0
 
-            # Kiểm tra biên trên/dưới
             if not (0 <= ny < len(self.maze.map_data)):
                 continue
                 
@@ -85,13 +79,13 @@ class PacmanSearchProblem:
             next_pos = (nx, ny)
             cost = 1
             if next_pos in ghost_positions: cost = 9999
-            elif next_pos in danger_zones: cost = 100
-            elif ny in dangerous_rows: cost = 100
+            elif next_pos in danger_zones: cost = 30
+            elif ny in dangerous_rows: cost = 20
             
             next_food_set = set(food_set)
             if next_pos in next_food_set:
                 next_food_set.remove(next_pos)
-                cost = max(1, cost - 10)
+                cost = max(1, cost - 50)
 
             successors.append(((next_pos, frozenset(next_food_set)), action, cost))
 
@@ -102,7 +96,6 @@ class PacmanSearchProblem:
         if start == goal:
             return 0
 
-        # Cache kết quả nếu có
         if (start, goal) in self._distance_cache:
             return self._distance_cache[(start, goal)]
 
@@ -121,7 +114,6 @@ class PacmanSearchProblem:
             if (next_x, next_y) == goal:
                 return (next_x, next_y)
 
-            # Forced neighbor check (phát hiện ngã rẽ)
             if dx != 0 and dy == 0:  # ngang
                 if (is_walkable(next_x, next_y - 1) and not is_walkable(x, y - 1)) \
                    or (is_walkable(next_x, next_y + 1) and not is_walkable(x, y + 1)):
@@ -134,7 +126,6 @@ class PacmanSearchProblem:
             return jump(next_x, next_y, dx, dy)
 
         def get_neighbors(x, y):
-            """Lấy 4 hướng di chuyển hợp lệ."""
             dirs = []
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nx, ny = x + dx, y + dy
@@ -142,7 +133,6 @@ class PacmanSearchProblem:
                     dirs.append((dx, dy))
             return dirs
 
-        import heapq
         open_list = [(0, start)]
         g_cost = {start: 0}
         heapq.heapify(open_list)
@@ -158,11 +148,10 @@ class PacmanSearchProblem:
             for dx, dy in get_neighbors(x, y):
                 jump_point = jump(x, y, dx, dy)
                 if jump_point:
-                    new_g = g_cost[current] + 1  # mỗi bước nhảy = 1 cạnh hợp lệ
+                    new_g = g_cost[current] + 1  
                     if jump_point not in g_cost or new_g < g_cost[jump_point]:
                         g_cost[jump_point] = new_g
                         heapq.heappush(open_list, (new_g, jump_point))
-
         return 9999  
 
     def _get_start_state(self):
@@ -184,7 +173,6 @@ class PacmanSearchProblem:
                 if cell == char:
                     positions.append((x, y))
         return positions
-
 
 # ==============================
 #  Heuristic A*
@@ -208,11 +196,9 @@ def heuristic(state, problem):
 
     mst_cost = 0
     if len(food_list) > 1:
-        # Sử dụng thuật toán Prim để tính MST
         visited = {food_list[0]}
         edges = []
         
-        # Thêm các cạnh từ đỉnh bắt đầu
         for i in range(1, len(food_list)):
             cost = problem.get_maze_distance(food_list[0], food_list[i])
             heapq.heappush(edges, (cost, food_list[0], food_list[i]))
@@ -226,13 +212,11 @@ def heuristic(state, problem):
             visited.add(v)
             mst_cost += cost
 
-            # Thêm các cạnh mới từ đỉnh vừa thăm
             for food_neighbor in food_list:
                 if food_neighbor not in visited:
                     new_cost = problem.get_maze_distance(v, food_neighbor)
                     heapq.heappush(edges, (new_cost, v, food_neighbor))
 
-    # Heuristic chính là tổng của khoảng cách đến mạng lưới và chi phí của mạng lưới
     food_heuristic = min_dist_to_food + mst_cost
 
     danger_penalty = 0
