@@ -1,103 +1,325 @@
 import pygame
+import sys
 from settings import *
+from maze import Maze
+from pacman import Pacman
+from ghost import Ghost
+from search import PacmanSearchProblem, a_star_search
+import random
 
-class Maze:
-    def __init__(self, filepath):
-        self.map_data = []
-        with open(filepath, 'r') as f:
-            for line in f:
-                self.map_data.append(line.strip())
+class Game:
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Pacman AI Project")
+        self.clock = pygame.time.Clock()
+        self.font_big = pygame.font.SysFont("comicsansms", 50)
+        self.font_small = pygame.font.SysFont("comicsansms", 24)
+        
+        self.game_state = 'menu'
+        self.maze = None
+        self.pacman = None
+        self.problem = None
+        self.ghosts = []
+        self.step_counter = 0
+        self.score = 0
+        
+        try:
+            self.load_initial_data()
+        except Exception as e:
+            print(f"ERR: {e}")
+            pygame.quit(); sys.exit()
+        
+        try:
+            temp_maze = Maze('maps/task02_pacman_example_map.txt') 
+            
+            self.screen = pygame.display.set_mode((temp_maze.width, temp_maze.height))
+            
+            self.load_initial_data() 
+            
+        except Exception as e:
+            print(f"ERR: {e}")
+            pygame.quit(); sys.exit()
 
-        self.tile_width = len(self.map_data[0])
-        self.tile_height = len(self.map_data)
-        self.width = self.tile_width * TILE_SIZE
-        self.height = self.tile_height * TILE_SIZE
+        pygame.display.set_caption("Pacman AI Project")
 
-    def draw(self, surface):
-        for row_idx, row in enumerate(self.map_data):
-            for col_idx, tile in enumerate(row):
-                x = col_idx * TILE_SIZE
-                y = row_idx * TILE_SIZE
-                
-                rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
+    def load_initial_data(self):
+        self.maze = Maze('maps/task02_pacman_example_map.txt')
+        self.maze.game = self 
+        self.problem = PacmanSearchProblem(self.maze)
+        self.ghosts = []
+        ghost_positions = self.problem._find_all_chars_in_maze('G')
+        ghost_colors = [(255,184,222), (255,0,0), (0,255,255), (255,184,82)]
+        for i, pos in enumerate(ghost_positions):
+            color = ghost_colors[i % len(ghost_colors)]
+            self.ghosts.append(Ghost(self, pos, color))
 
-                if tile == '%':  # Tường
-                    # Vẽ nền tối
-                    pygame.draw.rect(surface, DARK_WALL, rect) 
-                    # Vẽ đường viền sáng cho cảm giác 3D
-                    pygame.draw.rect(surface, BLUE, rect, 2) 
+    def reset_pacman(self):
+        self.step_counter = 0
+        self.load_initial_data()
+        start_pos = self.problem.get_start_state()[0]
+        if not start_pos: raise ValueError("ERR: Not found Pacman 'P'.")
+        self.pacman = Pacman(self, start_pos)
 
-                elif tile == '.':  # Food (Chấm nhỏ)
-                    pygame.draw.circle(surface, FOOD_COLOR, 
-                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
-                                       3) # Giảm bán kính 
-                    
-                elif tile == 'O': # Power-up (Chấm lớn)
-                    # Thêm hiệu ứng nhấp nháy/vòng tròn ngoài
-                    pygame.draw.circle(surface, POWER_UP_COLOR, 
-                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
-                                       TILE_SIZE // 2 - 4, 1) # Vòng tròn ngoài
-                    pygame.draw.circle(surface, FOOD_COLOR, 
-                                       (x + TILE_SIZE // 2, y + TILE_SIZE // 2), 
-                                       TILE_SIZE // 4) # Chấm đặc bên trong
+    def run(self):
+        while True:
+            if self.game_state == 'menu': self.run_menu()
+            elif self.game_state == 'playing_manual': self.run_manual_mode()
+            elif self.game_state == 'playing_auto': self.run_auto_mode()
+            elif self.game_state == 'game_over': self.run_game_over()
 
-                elif tile == 'E':  # Cổng ra
-                    GREEN_LIGHT = (50, 255, 50)
-                    pygame.draw.rect(surface, GREEN_LIGHT, rect)
-                    pygame.draw.rect(surface, (0, 100, 0), rect, 2) # Viền tối
+    def run_menu(self):
+        manual_text = self.font_big.render("MANUAL MODE", True, WHITE)
+        manual_rect = manual_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 50))
+        auto_text = self.font_big.render("AUTO MODE (A*)", True, WHITE)
+        auto_rect = auto_text.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 50))
+        
+        current_width = self.screen.get_width()
+        current_height = self.screen.get_height()
 
-    def remove_food(self, pos):
-        x, y = int(pos[0]), int(pos[1])
-        if 0 <= y < len(self.map_data) and 0 <= x < len(self.map_data[y]):
-            row = list(self.map_data[y])
-            row[x] = ' '  
-            self.map_data[y] = "".join(row)
+        manual_text = self.font_big.render("MANUAL MODE", True, WHITE)
+        manual_rect = manual_text.get_rect(center=(current_width/2, current_height/2 - 50)) 
+        
+        auto_text = self.font_big.render("AUTO MODE (A*)", True, WHITE)
+        auto_rect = auto_text.get_rect(center=(current_width/2, current_height/2 + 50))
+        
+        while self.game_state == 'menu':
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+                    if manual_rect.collidepoint(mouse_pos): self.reset_pacman(); self.game_state = 'playing_manual'
+                    elif auto_rect.collidepoint(mouse_pos): self.reset_pacman(); self.game_state = 'playing_auto'
+            self.screen.fill(BLACK); self.screen.blit(manual_text, manual_rect); self.screen.blit(auto_text, auto_rect)
+            pygame.display.flip(); self.clock.tick(15)
 
-    def rotate_maze_90_right(self, pacman=None, ghosts=None):
+    def run_manual_mode(self):
+        while self.game_state == 'playing_manual':
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE: self.game_state = 'menu'
+                    if event.key == pygame.K_LEFT: self.pacman.move(pygame.Vector2(-1, 0))
+                    if event.key == pygame.K_RIGHT: self.pacman.move(pygame.Vector2(1, 0))
+                    if event.key == pygame.K_UP: self.pacman.move(pygame.Vector2(0, -1))
+                    if event.key == pygame.K_DOWN: self.pacman.move(pygame.Vector2(0, 1))
 
-        if not self.map_data:
-            print("[WARN] Maze empty, cannot rotate.")
-            return
+            self.pacman.update()
+            for ghost in self.ghosts: ghost.update()
+            
+            if self.check_victory_condition():
+                return
 
-        max_len = max(len(row) for row in self.map_data)
-        normalized = [row.ljust(max_len, '%') for row in self.map_data]
+            if self.pacman.power_up_timer == 0:
+                for ghost in self.ghosts:
+                    if ghost.grid_pos == self.pacman.grid_pos:
+                        self.game_state = 'game_over'
+                        break
+            
+            self.draw("Mode: Manual | Press ESC for Menu")
+            self.clock.tick(60)
+            
+    def run_auto_mode(self):
+        self.draw("Mode : Auto |Calculating (replanning realtime)...")
+        if not self.pacman:
+            self.reset_pacman()
+        max_iterations = 10000
+        iters = 0
+        
+        direction_stats = {'North': 0, 'South': 0, 'East': 0, 'West': 0, 'Stop': 0}
+        total_steps = 0
+        total_cost = 0
 
-        old_height = len(normalized)
+        while self.game_state == 'playing_auto' and iters < max_iterations:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.game_state = 'menu'
+                    return
 
-        rotated = ["".join(row) for row in zip(*normalized[::-1])]
-        self.map_data = rotated
+            ghost_near = any(
+                abs(int(self.pacman.grid_pos.x) - int(g.grid_pos.x)) +
+                abs(int(self.pacman.grid_pos.y) - int(g.grid_pos.y)) <= 3
+                for g in self.ghosts
+            )
 
-        for i,row in enumerate(self.map_data):
-            self.map_data[i] = row.replace('P',' ').replace('G',' ')
+            if self.pacman.can_change_direction() or ghost_near:
+                if self.pacman.just_powered_up:
+                    self.pacman.just_powered_up = False
+                cur_pos = (int(self.pacman.grid_pos.x), int(self.pacman.grid_pos.y))
+                food_list = []
+                for y, row in enumerate(self.maze.map_data):
+                    for x, ch in enumerate(row):
+                        if ch == '.':
+                            food_list.append((x, y))
 
-        self.tile_width, self.tile_height = self.tile_height, self.tile_width
-        self.width = self.tile_width * TILE_SIZE
-        self.height = self.tile_height * TILE_SIZE
+                if len(food_list) == 0:
+                    exit_pos = getattr(self.maze, "exit_pos", None)
+                    if exit_pos is None:
+                        found = None
+                        for y, row in enumerate(self.maze.map_data):
+                            for x, ch in enumerate(row):
+                                if ch in ('E', 'X', '>', 'e', 'x'):
+                                    found = (x, y)
+                                    break
+                            if found: break
+                        exit_pos = found
 
-        if pacman is not None:
-            x, y = int(pacman.grid_pos.x), int(pacman.grid_pos.y)
-            new_x = old_height - 1 - y
-            new_y = x
-            # Kẹp để tránh vượt giới hạn
-            new_x = max(0, min(new_x, self.tile_width - 1))
-            new_y = max(0, min(new_y, self.tile_height - 1))
-            pacman.grid_pos = pygame.Vector2(new_x, new_y)
-            pacman.pix_pos = pacman.grid_pos * TILE_SIZE
+                    if exit_pos is None:
+                        self.draw("No exit found; ending auto mode."); pygame.time.wait(300)
+                        self.game_state = 'menu'
+                        return
+                    else:
+                        food_list = [exit_pos]
 
-            if pacman.direction.length() > 0:
-                old_dir = pacman.direction
-                pacman.direction = pygame.Vector2(-old_dir.y, old_dir.x)
+                problem_state = (cur_pos, frozenset(food_list))
+                saved_start = self.problem.start_state
+                self.problem.start_state = problem_state
 
-        if ghosts is not None:
-            for g in ghosts:
-                x, y = int(g.grid_pos.x), int(g.grid_pos.y)
-                new_x = old_height - 1 - y
-                new_y = x
-                new_x = max(0, min(new_x, self.tile_width - 1))
-                new_y = max(0, min(new_y, self.tile_height - 1))
-                g.grid_pos = pygame.Vector2(new_x, new_y)
-                g.pix_pos = g.grid_pos * TILE_SIZE
+                solution, cost = a_star_search(self.problem, return_cost=True)
+                self.problem.start_state = saved_start
 
-                if hasattr(g, "direction"):
-                    old_dir = g.direction
-                    g.direction = pygame.Vector2(-old_dir.y, old_dir.x)
+                if not solution or len(solution) == 0:
+                    self.draw("No path found (replanning...)"); pygame.time.wait(200)
+                    self.game_state = 'menu'
+                    return
+
+                next_action = solution[0]
+                total_cost += cost
+                total_steps += 1
+                if next_action in direction_stats:
+                    direction_stats[next_action] += 1
+
+                dir_vec = pygame.Vector2(0, 0)
+                if next_action == 'North': dir_vec = pygame.Vector2(0, -1)
+                elif next_action == 'South': dir_vec = pygame.Vector2(0, 1)
+                elif next_action == 'East': dir_vec = pygame.Vector2(1, 0)
+                elif next_action == 'West': dir_vec = pygame.Vector2(-1, 0)
+                elif next_action == 'Teleport' or next_action == 'Stop':
+                    dir_vec = pygame.Vector2(0, 0)
+                    direction_stats['Stop'] += 1
+
+                if dir_vec.length() > 0:
+                    self.pacman.move(dir_vec)
+
+            self.pacman.update()
+            for ghost in self.ghosts:
+                ghost.update()
+
+            if self.check_victory_condition():
+                break
+
+            if self.pacman.power_up_timer == 0:
+                for ghost in self.ghosts:
+                    if ghost.grid_pos == self.pacman.grid_pos:
+                        self.game_state = 'game_over'
+                        break
+
+            self.draw("Mode : Auto")
+            self.clock.tick(60)
+            iters += 1
+
+        for ghost in self.ghosts:
+            distance = self.pacman.pix_pos.distance_to(ghost.pix_pos)
+            if distance < TILE_SIZE / 2:
+                self.game_state = 'game_over'
+                break
+
+        if iters >= max_iterations:
+            print("[WARN] Auto mode reached iteration limit.")
+            self.game_state = 'menu'
+
+
+
+    def draw(self, status_text=""):
+        self.screen.fill(BLACK)
+        self.maze.draw(self.screen)
+        
+        if self.pacman: self.pacman.draw()
+        for ghost in self.ghosts: ghost.draw()
+        
+        current_width = self.screen.get_width()
+        
+        y_pos = 5 
+        
+        status_surface = self.font_small.render(status_text, True, (180, 180, 180)) 
+        self.screen.blit(status_surface, (10, y_pos))
+
+        score_text = f"SCORE: {self.score}" 
+        score_surface = self.font_small.render(score_text, True, YELLOW)
+        score_rect = score_surface.get_rect(right=current_width - 10, top=y_pos)
+        self.screen.blit(score_surface, score_rect)
+        
+        if self.pacman and self.pacman.power_up_timer > 0:
+            time_left = max(0, int(self.pacman.power_up_timer / 60) + 1)
+            timer_text = f"POWER UP"
+            timer_surface = self.font_small.render(timer_text, True, (255, 50, 50)) 
+            
+            timer_rect = timer_surface.get_rect(center=(current_width / 2, y_pos + self.font_small.get_height()/2))
+            self.screen.blit(timer_surface, timer_rect)
+        
+        pygame.display.flip()
+
+    def run_game_over(self):
+        start_time = pygame.time.get_ticks()
+        while pygame.time.get_ticks() - start_time < 3000:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            self.draw("GAME OVER")
+            current_width = self.screen.get_width()
+            current_height = self.screen.get_height()
+            game_over_text = self.font_big.render("GAME OVER", True, (255, 0, 0))
+            rect = game_over_text.get_rect(center=(current_width / 2, current_height / 2))
+            self.screen.blit(game_over_text, rect)
+            pygame.display.flip()
+        self.game_state = 'menu'
+        
+    def check_victory_condition(self):
+        remaining_food = any('.' in row for row in self.maze.map_data)
+        gates = self.problem._find_all_chars_in_maze('E')
+        if not gates:
+            return False  
+
+        pacman_pos = pygame.Vector2(int(self.pacman.grid_pos.x), int(self.pacman.grid_pos.y))
+        if not remaining_food:
+            for gx, gy in gates:
+                if abs(pacman_pos.x - gx) + abs(pacman_pos.y - gy) <= 1:
+                    start_time = pygame.time.get_ticks()
+                    while pygame.time.get_ticks() - start_time < 3000:
+                        for event in pygame.event.get():
+                            if event.type == pygame.QUIT:
+                                pygame.quit()
+                                sys.exit()
+
+                        self.draw("YOU WIN!")
+
+                        current_width = self.screen.get_width()
+                        current_height = self.screen.get_height()
+
+                        win_text = self.font_big.render("YOU WIN!", True, (0, 255, 0))
+                        win_rect = win_text.get_rect(center=(current_width / 2, current_height / 2 - 20))
+                        self.screen.blit(win_text, win_rect)
+                        total_steps = self.pacman.step_count
+                        
+                        steps_text = self.font_small.render(f"Total Steps: {total_steps}", True, WHITE)
+                        steps_rect = steps_text.get_rect(center=(current_width / 2, current_height / 2 + 30))
+                        
+                        self.screen.blit(steps_text, steps_rect)
+
+                        if not hasattr(self, "win_message_printed"):
+                            self.win_message_printed = True 
+                            if hasattr(self, "real_path") and len(self.real_path) > 0:
+                                print(f"Total Steps: {self.pacman.step_count} | Path: {' -> '.join(self.real_path)}")
+
+
+                        pygame.display.flip()
+                        
+                    self.game_state = 'menu'
+                    return True
+        return False
+
+
+if __name__ == '__main__':
+    game = Game()
+    game.run()
